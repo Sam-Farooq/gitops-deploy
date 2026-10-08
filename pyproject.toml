@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gitops-deploy"
+# The chart carries the same number, because the chart and these checks are one
+# artifact: a rule here usually lands with the template change that makes it
+# pass. Pre-1.0 while envs/ has two environments and the account has four
+# services; a third environment would change how cluster.yaml is shaped.
+version = "0.12.1"
+description = "Helm chart, Kustomize overlays and Argo CD definitions for the services on this account, with the refusals tested"
+requires-python = ">=3.11"
+dependencies = [
+    # The only runtime dependency. Everything else is helm and kustomize, which
+    # are binaries, not packages, and are checked for at the point of use.
+    "pyyaml>=6.0.2",
+]
+
+[project.scripts]
+gitopsvalidate = "gitopsvalidate.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest==9.1.1", "ruff==0.16.10"]
+
+[tool.setuptools]
+packages = ["gitopsvalidate"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "renders: needs the helm or kustomize binary. Skipped without them unless GITOPS_REQUIRE_TOOLS=1.",
+]
