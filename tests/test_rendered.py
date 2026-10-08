@@ -8,7 +8,7 @@ values files actually say.
 import pytest
 
 from gitopsvalidate import ENVIRONMENTS, SERVICES
-from gitopsvalidate.render import helm_lint, read_values
+from gitopsvalidate.render import read_values
 from gitopsvalidate.rules import check_render
 
 pytestmark = pytest.mark.renders
@@ -23,10 +23,10 @@ def test_every_rule_passes_on_every_render(renders, env, service):
 
 
 @pytest.mark.parametrize(("env", "service"), CASES)
-def test_helm_lint_is_clean(env, service):
+def test_helm_lint_is_clean(lints, env, service):
     # --strict, so a warning is a failure. Without it lint returns 0 on a chart
     # with no icon, no description and a values file the schema rejects.
-    assert "0 chart(s) failed" in helm_lint(service, env)
+    assert "0 chart(s) failed" in lints[(env, service)]
 
 
 @pytest.mark.parametrize(("env", "service"), CASES)

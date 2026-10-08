@@ -8,14 +8,11 @@ import pytest
 
 from gitopsvalidate import ENVIRONMENTS
 from gitopsvalidate.quantity import cpu_millis, memory_bytes
-from gitopsvalidate.render import kustomize_build
 
 pytestmark = pytest.mark.renders
 
-
-@pytest.fixture(scope="module")
-def overlays():
-    return {env: kustomize_build(env) for env in ENVIRONMENTS}
+# The overlays fixture is in conftest.py, because building it here called
+# kustomize with no guard and a missing binary became a setup error.
 
 
 def by_kind(docs, kind):

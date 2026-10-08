@@ -14,6 +14,8 @@ from gitopsvalidate import ENVIRONMENTS, SERVICES
 from gitopsvalidate.render import (
     REPO_ROOT,
     ToolMissing,
+    helm_lint,
+    kustomize_build,
     read_cluster,
     read_values,
     read_yaml,
@@ -29,15 +31,37 @@ def _unavailable(exc: ToolMissing):
     pytest.skip(f"{exc}; set GITOPS_REQUIRE_TOOLS=1 to make this a failure")
 
 
+def _guarded(render, *args):
+    """Run one helm or kustomize call with the missing-binary guard around it.
+
+    Every binary call a test makes goes through a fixture that goes through
+    here. A test that calls helm_lint or kustomize_build itself gets a failure
+    or a setup error on a machine without the binary, which is the opposite of
+    what the docstring above promises.
+    """
+    try:
+        return render(*args)
+    except ToolMissing as exc:
+        _unavailable(exc)
+
+
 @pytest.fixture(scope="session")
 def renders() -> dict:
-    out = {}
-    for env in ENVIRONMENTS:
-        try:
-            out[env] = render_environment(env, SERVICES)
-        except ToolMissing as exc:
-            _unavailable(exc)
-    return out
+    return {env: _guarded(render_environment, env, SERVICES) for env in ENVIRONMENTS}
+
+
+@pytest.fixture(scope="session")
+def lints() -> dict:
+    return {
+        (env, service): _guarded(helm_lint, service, env)
+        for env in ENVIRONMENTS
+        for service in SERVICES
+    }
+
+
+@pytest.fixture(scope="session")
+def overlays() -> dict:
+    return {env: _guarded(kustomize_build, env) for env in ENVIRONMENTS}
 
 
 @pytest.fixture(scope="session")
