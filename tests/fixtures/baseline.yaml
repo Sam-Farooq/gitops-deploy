@@ -1,0 +1,133 @@
+# Synthetic. Hand authored to pass every rule in gitopsvalidate/rules.py.
+# See README.md in this directory. Not captured from anything.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  selector:
+    app: x
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  labels:
+    deploy.sam-farooq.dev/track: stable
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    deploy.sam-farooq.dev/rollback: automatic
+spec:
+  replicas: 3
+  minReadySeconds: 10
+  progressDeadlineSeconds: 600
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: x
+        deploy.sam-farooq.dev/track: stable
+    spec:
+      terminationGracePeriodSeconds: 45
+      containers:
+        - name: app
+          image: ghcr.io/sam-farooq/x:1.0.0
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sleep", "5"]
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: app-migrate-abc
+  labels:
+    deploy.sam-farooq.dev/migration-strategy: expand
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  activeDeadlineSeconds: 1800
+  template:
+    metadata:
+      # Not the Service's selector labels. That is the point of job.is-service-endpoint.
+      labels:
+        role: migration
+    spec:
+      priorityClassName: batch
+      containers:
+        - name: migrate
+          image: ghcr.io/sam-farooq/x:1.0.0
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: app
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      deploy.sam-farooq.dev/track: stable
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: app
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: app
+  minReplicas: 2
+  maxReplicas: 6
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+data:
+  LOG_LEVEL: info
