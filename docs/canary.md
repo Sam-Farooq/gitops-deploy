@@ -72,9 +72,11 @@ coin toss. Below 2,000 canary requests the correct action is to widen the
 window, not to promote.
 
 At a 10% weight, 2,000 requests inside twenty minutes needs the service to be
-handling at least 1.7 requests per second overall. A canary started at 3am
-against a service that is quiet overnight does not meet gate 4 and must not be
-promoted on the strength of gates 1 to 3 passing.
+handling at least 16.7 requests per second overall. Twenty minutes is 1,200
+seconds, so 2,000 requests is 1.7 per second on the canary track, and the
+canary track is a tenth of the traffic. A canary started at 3am against a
+service that is quiet overnight does not meet gate 4 and must not be promoted
+on the strength of gates 1 to 3 passing.
 
 ## Aborting
 
