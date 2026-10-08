@@ -1,0 +1,74 @@
+name: ci
+
+on:
+  push: {branches: [main]}
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip}
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      # No helm here, so the rendered assertions skip. The job exists to keep
+      # the pure Python failures fast; `manifests` below is the real gate.
+      - run: pytest -q -m "not renders"
+
+  manifests:
+    runs-on: ubuntu-latest
+    env:
+      # Turns a missing binary into a failure instead of a skip. Without it a
+      # setup step that silently failed would leave the suite green with its
+      # real checks dropped.
+      GITOPS_REQUIRE_TOOLS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip}
+      - uses: azure/setup-helm@v4
+        with: {version: v3.16.4}
+      # A pinned release tarball rather than a third party action. The action
+      # for this is not maintained by the kustomize project and the install is
+      # two lines.
+      - name: install kustomize
+        run: |
+          curl -fsSL -o kustomize.tar.gz \
+            https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.5.0/kustomize_v5.5.0_linux_amd64.tar.gz
+          tar -xzf kustomize.tar.gz
+          sudo install -m 0755 kustomize /usr/local/bin/kustomize
+          kustomize version
+      - run: pip install -e ".[dev]"
+      - run: make lint
+      - run: pytest -q
+      # The same entry point the Makefile offers, so a clean local run means
+      # what a green pipeline means.
+      - run: python -m gitopsvalidate
+      # Renders every chart and both overlays to disk. A template that renders
+      # but produces something the next step cannot parse fails here.
+      - run: make template build
+      - name: every rendered document is valid Kubernetes YAML
+        run: |
+          python - <<'PY'
+          import pathlib
+          import sys
+
+          import yaml
+
+          count = 0
+          for path in sorted(pathlib.Path("rendered").rglob("*.yaml")):
+              for doc in yaml.safe_load_all(path.read_text()):
+                  if doc is None:
+                      continue
+                  missing = [k for k in ("apiVersion", "kind", "metadata") if k not in doc]
+                  if missing:
+                      sys.exit(f"{path}: document missing {missing}")
+                  count += 1
+          print(f"{count} documents across {len(list(pathlib.Path('rendered').rglob('*.yaml')))} files")
+          PY
