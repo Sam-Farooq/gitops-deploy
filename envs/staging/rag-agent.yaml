@@ -39,9 +39,11 @@ canary:
 autoscaling:
   enabled: false
 
+# No PDB. Two replicas with a 50% canary leaves one pod on the stable track,
+# and a budget over one pod permits no eviction: the first node drain would
+# stop on it. The chart refuses the pair rather than rendering it.
 pdb:
-  enabled: true
-  maxUnavailable: 1
+  enabled: false
 
 migration:
   enabled: true

@@ -42,11 +42,25 @@ def test_canary_on_a_contract_migration_is_refused():
     assert "the stable track is not a fallback" in message
 
 
+def test_budget_over_one_stable_pod_is_refused():
+    # 2 replicas with a 50% canary leaves 1 pod on the stable track, which the
+    # PDB selects. Reading .Values.replicas instead of the stable count was the
+    # first version of this guard, and it passed this exact case.
+    message = helm_template_raises("rag-agent", "prod", {"replicas": "2", "canary.weight": "50"})
+    assert "1 pod(s) on the stable track" in message
+    assert "replicas minus the 50% canary" in message
+
+
 def test_budget_over_one_replica_is_refused():
     message = helm_template_raises(
         "embedding-worker", "prod", {"replicas": "1", "pdb.enabled": "true"}
     )
     assert "a node drain blocks" in message
+
+
+def test_budget_over_an_hpa_floor_of_one_is_refused():
+    message = helm_template_raises("model-serving", "prod", {"autoscaling.minReplicas": "1"})
+    assert "autoscaling.minReplicas" in message
 
 
 def test_migration_without_a_content_hash_is_refused():
@@ -67,6 +81,13 @@ def test_a_weight_that_is_not_whole_pods_is_refused(weight):
     message = helm_template_raises("rag-agent", "prod", {"canary.weight": weight})
     assert "not expressible with 10 replicas" in message
     assert "the smallest step is 10%" in message
+
+
+def test_a_weight_that_leaves_one_stable_pod_is_refused():
+    # 90% of 10 replicas is 9 canary pods and 1 stable, which the PDB selects.
+    # The weight arithmetic is fine; the budget over the remainder is not.
+    message = helm_template_raises("rag-agent", "prod", {"canary.weight": "90"})
+    assert "1 pod(s) on the stable track" in message
 
 
 @pytest.mark.parametrize("weight", ["10", "20", "50"])

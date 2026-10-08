@@ -184,6 +184,15 @@ def test_a_budget_selecting_nothing_is_caught():
     assert "pdb.selector" in rules(findings)
 
 
+def test_the_hpa_floor_is_what_a_budget_is_judged_against():
+    # No spec.replicas, because an HPA owns it. minReplicas 1 means one pod at
+    # 4am, which is when the node pool is rolled.
+    doc = deployment()
+    del doc["spec"]["replicas"]
+    scaler = hpa(minReplicas=1)
+    assert "pdb.single-replica" in rules(check_disruption_budgets([doc, scaler, pdb()]))
+
+
 # --- probes ------------------------------------------------------------------
 
 

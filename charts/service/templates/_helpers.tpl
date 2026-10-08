@@ -92,8 +92,25 @@ resource is switched off.
 {{- if and .Values.canary.enabled (eq .Values.migration.strategy "contract") -}}
 {{- fail "a contract migration cannot be canaried: the previous image can no longer read the schema, so the stable track is not a fallback" -}}
 {{- end -}}
-{{- if and .Values.pdb.enabled (lt (int .Values.replicas) 2) -}}
-{{- fail (printf "pdb.enabled with replicas=%d: a PodDisruptionBudget over a single replica allows no voluntary eviction, so a node drain blocks until someone deletes the PDB by hand" (int .Values.replicas)) -}}
+{{- if .Values.pdb.enabled -}}
+{{/*
+The budget selects the stable track, not every pod of the service, so the
+count that matters is the stable track's and that is not .Values.replicas.
+With a canary it is replicas minus the canary's share; with an HPA it is
+minReplicas, because that is the floor a drain can meet.
+*/}}
+{{- $stable := int .Values.replicas -}}
+{{- $why := "replicas" -}}
+{{- if .Values.autoscaling.enabled -}}
+{{- $stable = int .Values.autoscaling.minReplicas -}}
+{{- $why = "autoscaling.minReplicas" -}}
+{{- else if .Values.canary.enabled -}}
+{{- $stable = sub (int .Values.replicas) (int (include "service.canaryPods" .)) -}}
+{{- $why = printf "replicas minus the %d%% canary" (int .Values.canary.weight) -}}
+{{- end -}}
+{{- if lt $stable 2 -}}
+{{- fail (printf "pdb.enabled with %d pod(s) on the stable track (%s): a PodDisruptionBudget that covers one pod allows no voluntary eviction, so a node drain blocks until someone deletes the PDB by hand" $stable $why) -}}
+{{- end -}}
 {{- end -}}
 {{- if and .Values.migration.enabled (not .Values.migration.sha) -}}
 {{- fail "migration.sha is required when migration.enabled: a Job's pod template is immutable, so the Job name has to change when the migration does" -}}

@@ -129,6 +129,14 @@ def check_image_tags(docs: list[dict]) -> list[Finding]:
     return findings
 
 
+def _hpa_floors(docs: list[dict]) -> dict[str, int]:
+    return {
+        doc["spec"]["scaleTargetRef"]["name"]: int(doc["spec"]["minReplicas"])
+        for doc in docs
+        if doc.get("kind") == "HorizontalPodAutoscaler"
+    }
+
+
 def check_disruption_budgets(docs: list[dict]) -> list[Finding]:
     """A PDB has to permit at least one eviction, or a node drain never ends.
 
@@ -151,11 +159,17 @@ def check_disruption_budgets(docs: list[dict]) -> list[Finding]:
         if not targets:
             findings.append(Finding("pdb.selector", where, "selects no Deployment in this render"))
             continue
+        floors = _hpa_floors(docs)
         for deployment in targets:
-            if "replicas" not in deployment["spec"]:
-                # An HPA owns the count, so there is no committed number here.
+            if "replicas" in deployment["spec"]:
+                replicas = int(deployment["spec"]["replicas"])
+            elif _name(deployment) in floors:
+                # An HPA owns the count, so the number a drain can rely on is
+                # minReplicas. Checking the live count instead would pass at
+                # peak and fail at 4am.
+                replicas = floors[_name(deployment)]
+            else:
                 continue
-            replicas = int(deployment["spec"]["replicas"])
             if spec.get("minAvailable") is not None:
                 min_available = spec["minAvailable"]
                 if isinstance(min_available, str) and min_available.endswith("%"):
