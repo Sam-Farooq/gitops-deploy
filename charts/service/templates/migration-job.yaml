@@ -1,0 +1,81 @@
+{{- if .Values.migration.enabled }}
+{{- $sha := .Values.migration.sha | trunc 12 }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # The content hash is in the name on purpose. A Job's pod template is
+  # immutable, so re-applying an edited Job under the same name fails the sync
+  # with "field is immutable" and nothing explains why.
+  name: {{ include "service.fullname" . }}-migrate-{{ $sha }}
+  labels:
+    {{- include "service.labels" . | nindent 4 }}
+    deploy.sam-farooq.dev/role: migration
+    deploy.sam-farooq.dev/migration-strategy: {{ .Values.migration.strategy }}
+  annotations:
+    # Wave 1: after the ConfigMap and the Service, before the workload. Argo CD
+    # holds the wave until the Job reports Complete, which is the ordering the
+    # rollout needs and the reason this is not a hook.
+    #
+    # A PreSync hook was the other option. It runs on every sync, including a
+    # self-heal that changed nothing, and hook-delete-policy throws away the
+    # previous run. A plain resource with a hashed name runs once per migration
+    # change and leaves the record.
+    #
+    # What that costs: edit a migration back to an earlier content and the
+    # completed Job for that hash is still there, so it does not run again.
+    # Reverting a migration means a new migration, not a revert.
+    argocd.argoproj.io/sync-wave: {{ include "service.wave" "migration" | quote }}
+spec:
+  backoffLimit: {{ .Values.migration.backoffLimit }}
+  # Shorter than the Application's sync timeout, so a wedged migration fails
+  # the wave rather than the whole sync timing out with no failed object.
+  activeDeadlineSeconds: {{ .Values.migration.activeDeadlineSeconds }}
+  # No ttlSecondsAfterFinished. The TTL controller deletes the finished Job,
+  # Argo CD sees it missing from the live cluster on the next sync, re-creates
+  # it, and the migration runs a second time. On a contract migration that is
+  # the difference between a dropped column and a failed sync.
+  template:
+    metadata:
+      # Deliberately NOT service.selectorLabels. The Service selects on name
+      # and instance only, with no track label, because that is how the canary
+      # receives traffic. A migration pod carrying those labels becomes a
+      # Service endpoint, and requests land on a container running psql.
+      labels:
+        app.kubernetes.io/name: {{ include "service.name" . }}-migrate
+        app.kubernetes.io/instance: {{ .Release.Name }}-migrate
+        deploy.sam-farooq.dev/role: migration
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "service.fullname" . }}
+      # Below the serving class. A migration that preempts request-serving pods
+      # to find room for itself has made the deploy an outage. The cost is that
+      # under real pressure the migration stays Pending and the wave stalls,
+      # which is the failure everyone would rather have.
+      priorityClassName: {{ .Values.migration.priorityClassName }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: "{{ .Values.migration.repository | default .Values.image.repository }}:{{ .Values.migration.tag | default .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            {{- toYaml .Values.migration.command | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "service.fullname" . }}
+          env:
+            - name: MIGRATION_SHA
+              value: {{ .Values.migration.sha | quote }}
+            - name: MIGRATION_STRATEGY
+              value: {{ .Values.migration.strategy | quote }}
+          resources:
+            {{- include "service.resources" .Values.migration.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+{{- end }}
