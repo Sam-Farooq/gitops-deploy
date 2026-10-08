@@ -339,8 +339,17 @@ weight leaving no stable pods        nothing to fall back to
 
 They live in `templates/guards.yaml`, which renders nothing and evaluates all of
 them. The filename has no leading underscore for a reason: Helm treats
-`templates/_*` as partials and never executes them, and as `_guards.yaml` every
-one of these silently did nothing. `helm template` accepted `image.tag=latest`,
-a canary beside a contract migration, and a budget over one pod. The sixteen
-tests in `tests/test_guards.py` exist because the guards did not: thirteen assert
-that a refusal fires, and three assert that a valid weight still renders.
+`templates/_*` as partials and never executes them, and as `_guards.yaml` seven
+of these silently did nothing. `helm template` accepted `image.tag=latest`, a
+canary beside a contract migration, and a budget over one pod.
+
+The last three in the list were unaffected. They sit in the `service.canaryPods`
+template rather than in `service.guards`, and `deployment.yaml` calls
+`service.canaryPods` to work out how many pods stay on the stable track, so
+they executed on every render no matter what the guards file was called. A
+partial is skipped as a file; a template defined in one still runs wherever it
+is included from.
+
+The sixteen tests in `tests/test_guards.py` exist because a guard that is never
+executed is indistinguishable from a guard that passes: thirteen assert that a
+refusal fires, and three assert that a valid weight still renders.
