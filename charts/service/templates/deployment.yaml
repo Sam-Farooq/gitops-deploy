@@ -1,0 +1,62 @@
+{{- $canaryPods := 0 }}
+{{- if .Values.canary.enabled }}
+{{- $canaryPods = int (include "service.canaryPods" .) }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "service.fullname" . }}
+  labels:
+    {{- include "service.labels" . | nindent 4 }}
+    deploy.sam-farooq.dev/track: stable
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ include "service.wave" "workload" | quote }}
+    {{- if eq .Values.migration.strategy "contract" }}
+    # A contract migration has dropped something the previous image reads.
+    # Argo CD can still roll this Deployment back; the result would be pods
+    # that start and then fail every query. docs/rollback.md is the path out.
+    deploy.sam-farooq.dev/rollback: manual
+    deploy.sam-farooq.dev/rollback-reason: "contract migration is not reversible"
+    {{- else }}
+    deploy.sam-farooq.dev/rollback: automatic
+    {{- end }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  # Omitted entirely when the HPA is on. Committing a replica count the HPA
+  # also writes gives Argo CD a diff it will self-heal, the HPA scales back up,
+  # and the two fight forever. The Application's ignoreDifferences is the
+  # second half of that; both are needed, because ignoreDifferences only hides
+  # the diff on a field that exists in the live object.
+  replicas: {{ sub (int .Values.replicas) $canaryPods }}
+  {{- end }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  # Longer than the worst case time for one pod to become Available, which is
+  # startupSeconds plus minReadySeconds. Shorter, and Argo CD reports the
+  # Application Degraded while the rollout is still legitimately progressing.
+  progressDeadlineSeconds: {{ .Values.progressDeadlineSeconds }}
+  # A pod that passes readiness and then crashes must not let the rollout
+  # continue. Zero here means the next pod is replaced immediately and a bad
+  # image can take every replica before anyone notices.
+  minReadySeconds: {{ .Values.minReadySeconds }}
+  selector:
+    matchLabels:
+      {{- include "service.selectorLabels" . | nindent 6 }}
+      deploy.sam-farooq.dev/track: stable
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      {{- if eq .Values.kind "deployment" }}
+      # Never below the current capacity: surge first, then remove. The cost is
+      # one extra pod's worth of requests during every rollout, which the
+      # capacity arithmetic in gitopsvalidate counts.
+      maxUnavailable: 0
+      maxSurge: 1
+      {{- else }}
+      # A queue consumer can be one short for a minute. Surging instead would
+      # claim an extra consumer slot, and the broker's partition count is the
+      # limit that matters here, not pod count.
+      maxUnavailable: 1
+      maxSurge: 0
+      {{- end }}
+  template:
+    {{- include "service.podTemplate" (dict "ctx" . "track" "stable" "tag" .Values.image.tag) | nindent 4 }}

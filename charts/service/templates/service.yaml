@@ -1,0 +1,23 @@
+{{- if eq .Values.kind "deployment" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "service.fullname" . }}
+  labels:
+    {{- include "service.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ include "service.wave" "service" | quote }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      # A named target port, not a number. The container port and the Service
+      # then cannot drift apart, and a test asserts the name resolves.
+      targetPort: {{ .Values.service.targetPort }}
+      protocol: TCP
+  # Both tracks match these labels. That is the whole canary mechanism: one
+  # Service, two Deployments, traffic split by pod count.
+  selector:
+    {{- include "service.selectorLabels" . | nindent 4 }}
+{{- end }}

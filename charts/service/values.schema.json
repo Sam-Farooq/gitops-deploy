@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "service chart values",
+  "type": "object",
+  "required": ["kind", "image", "environment", "partOf", "resources", "probes"],
+  "properties": {
+    "kind": {"enum": ["deployment", "worker"]},
+    "environment": {"enum": ["staging", "prod", ""]},
+    "partOf": {"type": "string"},
+    "nameOverride": {"type": "string"},
+    "replicas": {"type": "integer", "minimum": 1},
+    "containerPort": {"type": "integer", "minimum": 1, "maximum": 65535},
+    "logLevel": {"enum": ["debug", "info", "warn", "error"]},
+    "config": {"type": "object"},
+    "iamRoleArn": {"type": "string"},
+    "automountServiceAccountToken": {"type": "boolean"},
+    "priorityClassName": {"enum": ["serving", "batch"]},
+    "revisionHistoryLimit": {"type": "integer", "minimum": 1},
+    "progressDeadlineSeconds": {"type": "integer", "minimum": 60},
+    "minReadySeconds": {"type": "integer", "minimum": 0},
+    "tmpSizeLimit": {"type": "string"},
+    "image": {
+      "type": "object",
+      "required": ["repository", "tag", "pullPolicy"],
+      "properties": {
+        "repository": {"type": "string"},
+        "tag": {"type": "string"},
+        "pullPolicy": {"enum": ["IfNotPresent", "Always", "Never"]}
+      }
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "targetPort": {"type": "string"}
+      }
+    },
+    "resources": {
+      "type": "object",
+      "required": ["cpu", "memory"],
+      "properties": {
+        "cpu": {"type": "string", "pattern": "^[0-9]+(m)?$"},
+        "memory": {"type": "string", "pattern": "^[0-9]+(Mi|Gi)$"},
+        "cpuLimit": {"type": "string", "pattern": "^([0-9]+(m)?)?$"}
+      }
+    },
+    "probes": {
+      "type": "object",
+      "required": ["liveness", "readiness"],
+      "properties": {
+        "liveness": {"type": "string", "pattern": "^/"},
+        "readiness": {"type": "string", "pattern": "^/"},
+        "startupSeconds": {"type": "integer", "minimum": 0},
+        "startupPeriodSeconds": {"type": "integer", "minimum": 1},
+        "livenessPeriodSeconds": {"type": "integer", "minimum": 1},
+        "livenessFailureThreshold": {"type": "integer", "minimum": 1},
+        "readinessPeriodSeconds": {"type": "integer", "minimum": 1},
+        "readinessFailureThreshold": {"type": "integer", "minimum": 1},
+        "heartbeatMaxSeconds": {"type": "integer", "minimum": 1}
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "properties": {
+        "preStopSleepSeconds": {"type": "integer", "minimum": 0},
+        "terminationGracePeriodSeconds": {"type": "integer", "minimum": 1}
+      }
+    },
+    "topologySpread": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "maxSkew": {"type": "integer", "minimum": 1}
+      }
+    },
+    "pdb": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "maxUnavailable": {"type": "integer", "minimum": 1}
+      }
+    },
+    "autoscaling": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "minReplicas": {"type": "integer", "minimum": 1},
+        "maxReplicas": {"type": "integer", "minimum": 1},
+        "targetCPUUtilizationPercentage": {"type": "integer", "minimum": 1, "maximum": 100},
+        "scaleDownStabilizationSeconds": {"type": "integer", "minimum": 0}
+      }
+    },
+    "canary": {
+      "type": "object",
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "weight": {"type": "integer", "minimum": 1, "maximum": 99},
+        "tag": {"type": "string"},
+        "analysisWindow": {"type": "string"},
+        "promotionCriteria": {"type": "string"}
+      }
+    },
+    "migration": {
+      "type": "object",
+      "required": ["strategy"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "strategy": {"enum": ["none", "expand", "contract"]},
+        "repository": {"type": "string"},
+        "tag": {"type": "string"},
+        "sha": {"type": "string", "pattern": "^([0-9a-f]{64})?$"},
+        "command": {"type": "array", "items": {"type": "string"}},
+        "backoffLimit": {"type": "integer", "minimum": 0, "maximum": 6},
+        "activeDeadlineSeconds": {"type": "integer", "minimum": 60},
+        "priorityClassName": {"enum": ["serving", "batch"]},
+        "resources": {"type": "object"}
+      }
+    }
+  }
+}

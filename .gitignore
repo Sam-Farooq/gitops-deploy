@@ -1,0 +1,18 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.DS_Store
+
+# gitopsvalidate writes rendered manifests here when asked to keep them
+rendered/
+*.egg-info/
+build/
+dist/
+
+# helm
+charts/*/charts/
+charts/*/Chart.lock
+*.tgz

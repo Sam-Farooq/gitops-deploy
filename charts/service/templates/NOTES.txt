@@ -1,0 +1,17 @@
+{{ include "service.fullname" . }} rendered for {{ .Values.environment }}.
+
+  image      {{ .Values.image.repository }}:{{ .Values.image.tag }}
+  kind       {{ .Values.kind }}
+{{- if .Values.autoscaling.enabled }}
+  replicas   {{ .Values.autoscaling.minReplicas }} to {{ .Values.autoscaling.maxReplicas }}, HPA owned
+{{- else if .Values.canary.enabled }}
+  replicas   {{ .Values.replicas }} total: {{ sub (int .Values.replicas) (int (include "service.canaryPods" .)) }} stable, {{ include "service.canaryPods" . }} canary at {{ .Values.canary.weight }}%
+{{- else }}
+  replicas   {{ .Values.replicas }}, fixed
+{{- end }}
+  migration  {{ .Values.migration.strategy }}{{ if .Values.migration.enabled }} ({{ .Values.migration.sha | trunc 12 }}){{ end }}
+  rollback   {{ if eq .Values.migration.strategy "contract" }}manual, see docs/rollback.md{{ else }}automatic{{ end }}
+
+Worst case requests for this release are not in this output. Run
+`python -m gitopsvalidate --env {{ .Values.environment }}` for the arithmetic
+against the node pools and the namespace quota.

@@ -1,0 +1,11 @@
+apiVersion: v2
+name: service
+description: One chart for every long running service on this account, with the refusals built in
+type: application
+# The chart's own number. It is not any service's version: image.tag carries
+# that, and the chart has no appVersion because it is not tied to one image.
+version: 0.12.1
+kubeVersion: ">=1.29.0-0"
+maintainers:
+  - name: Ahtisham Farooq
+    email: ahtishamm.farooq@gmail.com

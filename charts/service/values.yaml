@@ -1,0 +1,103 @@
+# Defaults only. The chart does not render without an environment file:
+# image.tag and environment are empty here on purpose, and the guards in
+# templates/_helpers.tpl refuse an empty or moving tag. Use
+#   helm template <release> charts/service -f envs/<env>/<service>.yaml
+nameOverride: ""
+# Which repo on the account this deploys. Carried into app.kubernetes.io/part-of.
+partOf: ""
+environment: ""
+
+# "deployment" gets a Service, HTTP probes, a preStop drain and surge-first
+# rollouts. "worker" gets none of those, exec probes, and an in-place rollout.
+kind: deployment
+
+image:
+  repository: ""
+  tag: ""
+  pullPolicy: IfNotPresent
+
+replicas: 2
+containerPort: 8080
+logLevel: info
+config: {}
+iamRoleArn: ""
+automountServiceAccountToken: false
+priorityClassName: serving
+revisionHistoryLimit: 3
+progressDeadlineSeconds: 600
+minReadySeconds: 10
+tmpSizeLimit: 64Mi
+
+service:
+  port: 80
+  targetPort: http
+
+resources:
+  cpu: 100m
+  memory: 256Mi
+  # Absent for anything that serves a request. A CPU limit is enforced by CFS
+  # quota, and a pod that is throttled for 20ms of a 100ms period adds that to
+  # the tail of every request inside it. Batch work sets this; serving work
+  # does not, and a test asserts the split.
+  cpuLimit: ""
+
+probes:
+  liveness: /healthz
+  readiness: /readyz
+  # Boot budget. Divided by startupPeriodSeconds to get failureThreshold.
+  startupSeconds: 30
+  startupPeriodSeconds: 2
+  livenessPeriodSeconds: 10
+  livenessFailureThreshold: 6
+  readinessPeriodSeconds: 5
+  readinessFailureThreshold: 3
+  # worker only
+  heartbeatMaxSeconds: 120
+
+lifecycle:
+  preStopSleepSeconds: 5
+  terminationGracePeriodSeconds: 45
+
+topologySpread:
+  enabled: true
+  maxSkew: 1
+
+pdb:
+  enabled: true
+  maxUnavailable: 1
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+  scaleDownStabilizationSeconds: 300
+
+canary:
+  enabled: false
+  # Percent of total pods. Must divide into whole pods against replicas.
+  weight: 50
+  tag: ""
+  analysisWindow: 10m
+  promotionCriteria: ""
+
+migration:
+  enabled: false
+  # none: nothing runs.
+  # expand: additive and reversible. Rollback is safe.
+  # contract: removes something. Rollback is not possible, see docs/rollback.md.
+  strategy: none
+  repository: ""
+  tag: ""
+  # sha256 of the migration directory in the service's own repo. Required when
+  # enabled, because a Job's pod template is immutable and the name has to move
+  # when the content does.
+  sha: ""
+  command: []
+  backoffLimit: 2
+  activeDeadlineSeconds: 1800
+  priorityClassName: batch
+  resources:
+    cpu: 200m
+    memory: 256Mi
+    cpuLimit: 500m
