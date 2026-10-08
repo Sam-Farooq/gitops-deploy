@@ -1,0 +1,64 @@
+partOf: rag-agent
+environment: prod
+kind: deployment
+image:
+  repository: ghcr.io/sam-farooq/rag-agent
+  tag: "1.9.3"
+  pullPolicy: IfNotPresent
+
+# Fixed, because the canary weight is expressed in pods. 10 replicas is the
+# smallest count that can express a 10% canary: see docs/canary.md.
+replicas: 10
+containerPort: 8080
+service:
+  port: 80
+  targetPort: http
+
+resources:
+  cpu: 500m
+  memory: 1Gi
+
+probes:
+  liveness: /healthz
+  readiness: /readyz
+  # The retriever warms an in-process cache from Postgres before it answers.
+  # 60s is the budget; past that the startup probe fails and the pod restarts
+  # without ever having been counted as Ready.
+  startupSeconds: 60
+  startupPeriodSeconds: 2
+
+lifecycle:
+  preStopSleepSeconds: 5
+  # Longest answered request plus the endpoint propagation window.
+  terminationGracePeriodSeconds: 60
+
+canary:
+  enabled: true
+  weight: 10
+  tag: "1.10.0-rc2"
+  analysisWindow: 20m
+  promotionCriteria: "docs/canary.md#rag-agent"
+
+autoscaling:
+  enabled: false
+
+pdb:
+  enabled: true
+  maxUnavailable: 1
+
+migration:
+  enabled: true
+  # Additive: one nullable column and one index, created concurrently. The
+  # 1.9.3 image ignores both, so this is safe to run before the rollout and
+  # safe to leave in place if the rollout is reverted.
+  strategy: expand
+  sha: "4f1c2ba9e07d5538a1be6c0d9f7a2e31c84db05f6ad3e9172c5b84ff0a6d7e92"
+  command: ["/app/bin/migrate", "up"]
+  resources:
+    cpu: 500m
+    memory: 512Mi
+    cpuLimit: 1000m
+
+config:
+  RETRIEVER_TOP_K: "12"
+  RERANK_ENABLED: "true"

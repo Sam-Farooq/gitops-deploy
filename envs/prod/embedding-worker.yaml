@@ -1,0 +1,48 @@
+partOf: embedding-pipeline
+environment: prod
+kind: worker
+nameOverride: embedding-worker
+image:
+  repository: ghcr.io/sam-farooq/embedding-pipeline
+  tag: "0.8.2"
+  pullPolicy: IfNotPresent
+
+# Fixed at the broker's partition count. An eleventh pod would idle, and an
+# HPA on CPU would add exactly that: queue depth is the signal, and this
+# cluster has no metrics adapter, so the honest answer is a fixed count.
+replicas: 4
+
+resources:
+  cpu: 750m
+  memory: 2Gi
+
+# Exec probes, not HTTP. There is no port to ask.
+probes:
+  heartbeatMaxSeconds: 180
+  livenessPeriodSeconds: 30
+  livenessFailureThreshold: 4
+  readinessPeriodSeconds: 10
+  readinessFailureThreshold: 3
+
+lifecycle:
+  preStopSleepSeconds: 0
+  # The broker's visibility timeout. Shorter and a message is redelivered while
+  # this pod is still working on it.
+  terminationGracePeriodSeconds: 300
+
+autoscaling:
+  enabled: false
+canary:
+  enabled: false
+
+pdb:
+  enabled: true
+  maxUnavailable: 1
+
+migration:
+  enabled: false
+  strategy: none
+
+config:
+  BATCH_TOKEN_BUDGET: "120000"
+  QDRANT_COLLECTION: "docs_v3"

@@ -1,0 +1,58 @@
+partOf: hybrid-search
+environment: staging
+kind: deployment
+image:
+  repository: ghcr.io/sam-farooq/hybrid-search
+  tag: "0.9.1"
+  pullPolicy: IfNotPresent
+
+containerPort: 8080
+service:
+  port: 80
+  targetPort: http
+
+resources:
+  cpu: 150m
+  memory: 512Mi
+
+probes:
+  liveness: /healthz
+  readiness: /readyz
+  startupSeconds: 40
+  startupPeriodSeconds: 2
+
+lifecycle:
+  preStopSleepSeconds: 5
+  terminationGracePeriodSeconds: 45
+
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 2
+  targetCPUUtilizationPercentage: 70
+  scaleDownStabilizationSeconds: 120
+
+canary:
+  enabled: false
+
+pdb:
+  enabled: false
+
+migration:
+  enabled: true
+  # The contract step ran here first, which is the only reason there is any
+  # confidence about prod. What staging cannot tell you is whether a query
+  # path nobody exercises still reads the dropped column.
+  strategy: contract
+  sha: "9b0a73e5c1d4482f6e37a05bb9c81d2f47e60a3159dc8b742f0e5a6c3d91b784"
+  command: ["/app/bin/migrate", "up"]
+  resources:
+    cpu: 250m
+    memory: 256Mi
+    cpuLimit: 500m
+
+config:
+  BM25_K1: "1.2"
+  BM25_B: "0.75"
+  RRF_K: "60"
+logLevel: debug

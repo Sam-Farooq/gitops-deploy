@@ -1,0 +1,12 @@
+# Staging, same shape, two small nodes. Both run on spot in eks-infra, so a
+# node going away here is a rehearsal rather than an incident, and the capacity
+# arithmetic is sized for one node to be gone without the quota being wrong.
+environment: staging
+headroomPercent: 15
+pools:
+  - name: general
+    instanceType: m6i.large
+    count: 2
+    allocatableCpu: 1700m
+    allocatableMemory: 6Gi
+    taints: []

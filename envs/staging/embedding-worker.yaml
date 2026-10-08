@@ -1,0 +1,45 @@
+partOf: embedding-pipeline
+environment: staging
+kind: worker
+nameOverride: embedding-worker
+image:
+  repository: ghcr.io/sam-farooq/embedding-pipeline
+  tag: "0.8.2"
+  pullPolicy: IfNotPresent
+
+replicas: 1
+
+resources:
+  cpu: 150m
+  memory: 384Mi
+
+# Exec probes, not HTTP. There is no port to ask.
+probes:
+  heartbeatMaxSeconds: 180
+  livenessPeriodSeconds: 30
+  livenessFailureThreshold: 4
+  readinessPeriodSeconds: 10
+  readinessFailureThreshold: 3
+
+lifecycle:
+  preStopSleepSeconds: 0
+  terminationGracePeriodSeconds: 300
+
+autoscaling:
+  enabled: false
+canary:
+  enabled: false
+
+# One replica, so no PDB. The chart refuses the pair outright rather than
+# rendering a budget that can never be satisfied.
+pdb:
+  enabled: false
+
+migration:
+  enabled: false
+  strategy: none
+
+config:
+  BATCH_TOKEN_BUDGET: "20000"
+  QDRANT_COLLECTION: "docs_v3_staging"
+logLevel: debug

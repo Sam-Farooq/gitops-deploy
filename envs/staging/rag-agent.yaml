@@ -1,0 +1,59 @@
+partOf: rag-agent
+environment: staging
+kind: deployment
+image:
+  repository: ghcr.io/sam-farooq/rag-agent
+  tag: "1.10.0-rc2"
+  pullPolicy: IfNotPresent
+
+# Two replicas, so the smallest canary this environment can express is 50%.
+# Asking for 10% here is refused rather than rounded to zero pods, which is
+# the point of the arithmetic in templates/_helpers.tpl.
+replicas: 2
+containerPort: 8080
+service:
+  port: 80
+  targetPort: http
+
+resources:
+  cpu: 150m
+  memory: 384Mi
+
+probes:
+  liveness: /healthz
+  readiness: /readyz
+  startupSeconds: 60
+  startupPeriodSeconds: 2
+
+lifecycle:
+  preStopSleepSeconds: 5
+  terminationGracePeriodSeconds: 45
+
+canary:
+  enabled: true
+  weight: 50
+  tag: "1.10.0-rc3"
+  analysisWindow: 10m
+  promotionCriteria: "docs/canary.md#rag-agent"
+
+autoscaling:
+  enabled: false
+
+pdb:
+  enabled: true
+  maxUnavailable: 1
+
+migration:
+  enabled: true
+  strategy: expand
+  sha: "4f1c2ba9e07d5538a1be6c0d9f7a2e31c84db05f6ad3e9172c5b84ff0a6d7e92"
+  command: ["/app/bin/migrate", "up"]
+  resources:
+    cpu: 250m
+    memory: 256Mi
+    cpuLimit: 500m
+
+config:
+  RETRIEVER_TOP_K: "12"
+  RERANK_ENABLED: "true"
+logLevel: debug

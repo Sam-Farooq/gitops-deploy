@@ -1,0 +1,62 @@
+partOf: hybrid-search
+environment: prod
+kind: deployment
+image:
+  repository: ghcr.io/sam-farooq/hybrid-search
+  tag: "0.9.1"
+  pullPolicy: IfNotPresent
+
+containerPort: 8080
+service:
+  port: 80
+  targetPort: http
+
+resources:
+  cpu: 500m
+  memory: 2Gi
+
+probes:
+  liveness: /healthz
+  readiness: /readyz
+  startupSeconds: 40
+  startupPeriodSeconds: 2
+
+lifecycle:
+  preStopSleepSeconds: 5
+  terminationGracePeriodSeconds: 45
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 8
+  targetCPUUtilizationPercentage: 70
+  scaleDownStabilizationSeconds: 300
+
+canary:
+  enabled: false
+
+pdb:
+  enabled: true
+  maxUnavailable: 1
+
+migration:
+  enabled: true
+  # The second half of an expand and contract pair. 0.8.x stopped reading
+  # lexical_vector_v1 three releases ago; this drops the column and its index.
+  #
+  # It is not reversible. The chart annotates the Deployment
+  # deploy.sam-farooq.dev/rollback: manual, refuses to canary it, and the Argo
+  # CD Application for this service is the one with automated sync switched
+  # off. docs/rollback.md is what to do when 0.9.1 is bad.
+  strategy: contract
+  sha: "9b0a73e5c1d4482f6e37a05bb9c81d2f47e60a3159dc8b742f0e5a6c3d91b784"
+  command: ["/app/bin/migrate", "up"]
+  resources:
+    cpu: 500m
+    memory: 512Mi
+    cpuLimit: 1000m
+
+config:
+  BM25_K1: "1.2"
+  BM25_B: "0.75"
+  RRF_K: "60"

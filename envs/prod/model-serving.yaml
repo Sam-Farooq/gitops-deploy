@@ -1,0 +1,58 @@
+partOf: model-serving
+environment: prod
+kind: deployment
+image:
+  repository: ghcr.io/sam-farooq/model-serving
+  tag: "2.1.0"
+  pullPolicy: IfNotPresent
+
+containerPort: 8000
+service:
+  port: 80
+  targetPort: http
+
+resources:
+  cpu: 900m
+  memory: 3Gi
+
+probes:
+  liveness: /healthz
+  # /readyz loads the model and answers one warmup batch. A pod that passed
+  # /healthz at 400ms and took 3 minutes to load weights is the whole reason
+  # these two paths are different.
+  readiness: /readyz
+  startupSeconds: 240
+  startupPeriodSeconds: 5
+
+lifecycle:
+  preStopSleepSeconds: 5
+  # A batch in flight can run 30s. Killing it loses the whole batch, not one
+  # request, because the client sent 32 inputs in one call.
+  terminationGracePeriodSeconds: 90
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 8
+  # 60, not 70. Utilization is measured against the request, and with no CPU
+  # limit a pod at 60% of request is already using more core than it asked for.
+  targetCPUUtilizationPercentage: 60
+  scaleDownStabilizationSeconds: 600
+
+# No canary. An HPA and a pod-count canary cannot share a Deployment: the
+# scaler moves the stable count during the analysis window and the weight the
+# report was written against no longer exists. The chart refuses the pair.
+canary:
+  enabled: false
+
+pdb:
+  enabled: true
+  maxUnavailable: 1
+
+migration:
+  enabled: false
+  strategy: none
+
+config:
+  MODEL_REVISION: "2026-08-19"
+  MAX_BATCH_SIZE: "32"

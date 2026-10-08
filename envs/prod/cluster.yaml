@@ -1,0 +1,31 @@
+# What the prod cluster offers, declared here rather than discovered.
+#
+# These are instance specs minus a flat reservation budgeted for the kubelet,
+# the VPC CNI and the node's system daemons. They are a planning budget, not a
+# reading from a live node: nothing in this repo has talked to a cluster. A
+# node whose real allocatable is lower than this will schedule fewer pods than
+# the arithmetic here promises, which is why the headroom is 15% and not 2%.
+#
+# The instance types match eks-infra/envs/prod. The spark pool is listed so
+# that the capacity rules can prove they exclude it.
+environment: prod
+headroomPercent: 15
+pools:
+  - name: general
+    instanceType: m6i.2xlarge
+    count: 4
+    allocatableCpu: 7300m
+    allocatableMemory: 28Gi
+    taints: []
+  - name: spark
+    instanceType: r6i.4xlarge
+    count: 3
+    allocatableCpu: 15200m
+    allocatableMemory: 120Gi
+    # Nothing in this repo tolerates this. 45 cores and 360Gi of it are
+    # invisible to every pod here, and counting them was the first version of
+    # the capacity check.
+    taints:
+      - key: workload
+        value: spark
+        effect: NoSchedule
