@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: platform
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 100m
+        memory: 256Mi
+      default:
+        memory: 256Mi
+      max:
+        # Above model-serving's 900m and 3Gi, which is the largest single
+        # container here. A max below the largest request rejects the pod with
+        # a message about the LimitRange, which is a long way from the values
+        # file that actually has to change.
+        cpu: "2"
+        memory: 8Gi
+      min:
+        cpu: 50m
+        memory: 64Mi

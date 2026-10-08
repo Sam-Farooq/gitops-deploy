@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-datastores
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    # Wider than prod, deliberately: staging pulls model weights and test
+    # fixtures from the public internet, and narrowing it would mean keeping a
+    # list of hostnames current for an environment nobody is paged for. The
+    # difference is written down here rather than discovered by someone
+    # copying the staging policy into prod.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              # The instance metadata service. Reachable from a pod, it hands
+              # out the node's IAM role, which is a larger role than any pod's.
+              - 169.254.169.254/32
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 6333

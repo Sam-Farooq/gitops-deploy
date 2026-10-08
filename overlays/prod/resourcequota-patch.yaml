@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform
+spec:
+  hard:
+    # Set from `python -m gitopsvalidate --env prod`, which sums the worst case
+    # requests across the four services with their rollout surge and their
+    # migration Jobs. Two rules bracket these numbers: the quota has to be at
+    # least the worst case, or a normal rollout is rejected at the quota and
+    # the sync fails with pods that were never scheduled; and it has to be no
+    # more than the general pool can schedule with its headroom, or the quota
+    # admits pods the cluster has nowhere to put and they sit Pending instead.
+    requests.cpu: "24"
+    requests.memory: 80Gi
+    limits.memory: 80Gi
+    count/pods: "44"
+    services.loadbalancers: "0"

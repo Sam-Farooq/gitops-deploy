@@ -1,0 +1,23 @@
+# Cluster scoped. The namespace transformer leaves these alone, which is why
+# they are in the base and not duplicated per overlay.
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: serving
+value: 100000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: "Request serving pods. Preempts batch work to find room."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: batch
+value: 1000
+globalDefault: false
+# Never. A migration Job that can evict serving pods to schedule itself has
+# turned a deploy into an outage. The cost is that under real pressure the
+# migration stays Pending and the sync wave stalls, which is the failure that
+# can be read off `kubectl get pods` instead of a graph.
+preemptionPolicy: Never
+description: "Migrations and batch. Waits rather than preempting."

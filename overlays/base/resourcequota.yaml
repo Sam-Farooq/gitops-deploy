@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  hard:
+    # Deliberately too small to run anything. Both overlays patch these, and a
+    # base that is also a working quota is a base that gets shipped by mistake
+    # when an overlay forgets the patch.
+    requests.cpu: "1"
+    requests.memory: 1Gi
+    limits.memory: 1Gi
+    count/pods: "4"
+    # A second LoadBalancer in this namespace is a second bill and a second
+    # public address. There is one ingress controller and it is not here.
+    services.loadbalancers: "0"

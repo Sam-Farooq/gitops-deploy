@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform
+spec:
+  hard:
+    # From `python -m gitopsvalidate --env staging`. Two m6i.large nodes is
+    # 3400m allocatable, so this ceiling is close: the same rule that passes
+    # here fails if model-serving's maxReplicas goes back to 3.
+    requests.cpu: 2800m
+    requests.memory: 8Gi
+    limits.memory: 8Gi
+    count/pods: "16"
+    services.loadbalancers: "0"

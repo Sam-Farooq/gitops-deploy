@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  limits:
+    - type: Container
+      # Defaults exist so that a container with no requests cannot land in a
+      # namespace that has a quota: without a request the quota rejects it
+      # outright, and the error names the quota rather than the container.
+      #
+      # Nothing from charts/service relies on these. A test asserts that every
+      # rendered container sets its own requests, because a default that is
+      # silently applied is a resource number nobody chose.
+      defaultRequest:
+        cpu: 100m
+        memory: 256Mi
+      default:
+        memory: 256Mi
+      max:
+        cpu: "2"
+        memory: 8Gi
+      min:
+        cpu: 50m
+        memory: 64Mi

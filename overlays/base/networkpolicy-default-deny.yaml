@@ -1,0 +1,14 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  # Empty selector: every pod in the namespace. Both directions, so a new
+  # service is unreachable until something allows it rather than reachable
+  # until something forbids it.
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress

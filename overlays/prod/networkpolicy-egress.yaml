@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-datastores
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    # The VPC's private subnets, from eks-infra/envs/prod. Postgres, Qdrant and
+    # the VPC endpoints are all inside this range.
+    - to:
+        - ipBlock:
+            cidr: 10.40.0.0/16
+      ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 6333
+    # S3 over the gateway endpoint. The endpoint keeps the traffic off the NAT,
+    # and this rule is what stops it going anywhere else on 443. A plain
+    # 0.0.0.0/0 on 443 here would make the default-deny decorative.
+    - to:
+        - ipBlock:
+            cidr: 10.40.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443

@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Sets metadata.namespace on everything namespaced, and renames the Namespace
+# object itself. The PriorityClasses are cluster scoped and are left alone.
+namespace: platform-prod
+
+resources:
+  - ../base
+  - networkpolicy-egress.yaml
+
+patches:
+  - path: resourcequota-patch.yaml
+  - path: limitrange-patch.yaml
+
+labels:
+  - pairs:
+      deploy.sam-farooq.dev/environment: prod
+    includeSelectors: false
