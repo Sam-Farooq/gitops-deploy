@@ -1,0 +1,49 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: platform-overlays
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          - { env: staging }
+          - { env: prod }
+  template:
+    metadata:
+      name: "platform-{{.env}}"
+      labels:
+        deploy.sam-farooq.dev/environment: "{{.env}}"
+    spec:
+      project: platform
+      source:
+        repoURL: https://github.com/Sam-Farooq/gitops-deploy
+        targetRevision: main
+        path: "overlays/{{.env}}"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "platform-{{.env}}"
+      revisionHistoryLimit: 5
+      syncPolicy:
+        automated:
+          # prune false. These are the namespace, the quota and the deny-all
+          # policy. A generator bug that drops an element here would otherwise
+          # delete the namespace and everything in it, and the four service
+          # Applications would start re-creating objects into nothing.
+          prune: false
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=false
+          # Apply every object on every sync, not only the ones that differ.
+          # The quota and the LimitRange are in sync wave -1, and skipping an
+          # already-matching object means a wave can complete without having
+          # applied the thing the next wave depends on.
+          - ApplyOutOfSyncOnly=false
+        retry:
+          limit: 3
+          backoff:
+            duration: 20s
+            factor: 2
+            maxDuration: 3m

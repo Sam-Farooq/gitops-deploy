@@ -1,0 +1,109 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: platform-services
+  namespace: argocd
+spec:
+  goTemplate: true
+  # Fail on a key the template asks for and the element does not have. The
+  # default renders an empty string, so a typo in a field name produces an
+  # Application pointing at a values file that does not exist, and the first
+  # sign of it is a sync error at 2am.
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          - { service: rag-agent,        env: staging, hpa: false, autoSync: true }
+          - { service: model-serving,    env: staging, hpa: true,  autoSync: true }
+          # autoSync false for the same reason as prod below. Staging is where
+          # the contract migration is rehearsed, and the point of a rehearsal
+          # is that somebody is watching it.
+          - { service: hybrid-search,    env: staging, hpa: true,  autoSync: false }
+          - { service: embedding-worker, env: staging, hpa: false, autoSync: true }
+          - { service: rag-agent,        env: prod,    hpa: false, autoSync: true }
+          - { service: model-serving,    env: prod,    hpa: true,  autoSync: true }
+          # autoSync false. envs/prod/hybrid-search.yaml carries a contract
+          # migration, which drops a column the previous image reads. Automated
+          # sync plus self-heal would run that migration the moment the commit
+          # lands, at whatever hour it lands, and there is no way back from it.
+          # A human syncs this one, having read docs/rollback.md first.
+          - { service: hybrid-search,    env: prod,    hpa: true,  autoSync: false }
+          - { service: embedding-worker, env: prod,    hpa: false, autoSync: true }
+
+  # Everything every Application gets.
+  template:
+    metadata:
+      name: "{{.service}}-{{.env}}"
+      labels:
+        deploy.sam-farooq.dev/service: "{{.service}}"
+        deploy.sam-farooq.dev/environment: "{{.env}}"
+    spec:
+      project: platform
+      source:
+        repoURL: https://github.com/Sam-Farooq/gitops-deploy
+        targetRevision: main
+        path: charts/service
+        helm:
+          # The release name is the service name, which is what makes the
+          # object names readable: the chart is called "service" and that word
+          # appears in nothing it renders.
+          releaseName: "{{.service}}"
+          valueFiles:
+            - "../../envs/{{.env}}/{{.service}}.yaml"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "platform-{{.env}}"
+      syncPolicy:
+        syncOptions:
+          # The namespace belongs to overlays/, which sets its Pod Security
+          # labels and its quota. Two owners for one object means whichever
+          # Application syncs second wins.
+          - CreateNamespace=false
+          # Without this, ignoreDifferences only hides the diff in the UI and
+          # the sync still applies the committed value. The pair of them is
+          # what actually leaves the HPA alone.
+          - RespectIgnoreDifferences=true
+          # Prune after the new objects are healthy, so a renamed object does
+          # not have a window with neither version present.
+          - PruneLast=true
+        retry:
+          limit: 3
+          backoff:
+            duration: 20s
+            factor: 2
+            maxDuration: 3m
+
+  # The two things that differ per element and cannot be expressed above.
+  #
+  # spec.template is structured YAML, so a field cannot be conditional there:
+  # there is no way to write "this Application has an ignoreDifferences block
+  # and that one does not". templatePatch is a string, which is why it can, and
+  # the result is merged onto the rendered template.
+  #
+  # revisionHistoryLimit is unconditional on purpose. A patch where every key
+  # is behind an `if` renders as a bare `spec:` when no branch fires, and a
+  # merge patch of `spec: null` empties the Application.
+  templatePatch: |
+    spec:
+      revisionHistoryLimit: 5
+      {{- if .hpa }}
+      ignoreDifferences:
+        # The HPA writes spec.replicas. The chart omits it, which is the real
+        # fix; this is for the window after someone has run `kubectl scale` by
+        # hand during an incident. Argo CD would otherwise show the Application
+        # OutOfSync forever against a field no manifest in this repo sets.
+        - group: apps
+          kind: Deployment
+          name: {{ .service }}
+          jsonPointers:
+            - /spec/replicas
+      {{- end }}
+      {{- if .autoSync }}
+      syncPolicy:
+        automated:
+          prune: true
+          # Reverts a manual kubectl edit. Beside a contract migration this is
+          # the dangerous half, which is why one element has autoSync false and
+          # gets no automated block at all.
+          selfHeal: true
+      {{- end }}

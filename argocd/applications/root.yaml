@@ -1,0 +1,38 @@
+# The one object applied by hand. Everything else in this repo is reached
+# through it:
+#
+#   kubectl apply -n argocd -f argocd/applications/root.yaml
+#
+# It syncs argocd/, which contains the project and the two ApplicationSets,
+# which generate the ten Applications. After this there is no second manual
+# step, and no Application exists that a `git log` cannot explain.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  # default, not platform. The root app creates the platform project, and a
+  # project cannot be the project of the Application that creates it.
+  project: default
+  source:
+    repoURL: https://github.com/Sam-Farooq/gitops-deploy
+    targetRevision: main
+    path: argocd
+    directory:
+      recurse: true
+      # applications/ holds this file. Recursing into it would make the root
+      # app manage itself, and a self-managing Application that goes wrong
+      # takes away the thing that would have fixed it.
+      exclude: "applications/*"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
