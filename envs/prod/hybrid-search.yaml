@@ -41,8 +41,11 @@ pdb:
 
 migration:
   enabled: true
-  # The second half of an expand and contract pair. 0.8.x stopped reading
-  # lexical_vector_v1 three releases ago; this drops the column and its index.
+  # The second half of an expand and contract pair: it drops lexical_vector_v1
+  # and its index. The rule this encodes is that a contract migration may only
+  # ship after the image that stopped reading the column has been live for a
+  # release. Step 1 of docs/rollback.md is how that is checked, and this repo
+  # cannot check it for you.
   #
   # It is not reversible. The chart annotates the Deployment
   # deploy.sam-farooq.dev/rollback: manual, refuses to canary it, and the Argo

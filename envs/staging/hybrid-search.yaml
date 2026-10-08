@@ -40,9 +40,10 @@ pdb:
 
 migration:
   enabled: true
-  # The contract step ran here first, which is the only reason there is any
-  # confidence about prod. What staging cannot tell you is whether a query
-  # path nobody exercises still reads the dropped column.
+  # The contract step is meant to be rehearsed here first, which is why this
+  # Application is manual sync too: the point of a rehearsal is that somebody
+  # watches it. What staging cannot tell you either way is whether a query path
+  # nobody exercises still reads the dropped column.
   strategy: contract
   sha: "9b0a73e5c1d4482f6e37a05bb9c81d2f47e60a3159dc8b742f0e5a6c3d91b784"
   command: ["/app/bin/migrate", "up"]
