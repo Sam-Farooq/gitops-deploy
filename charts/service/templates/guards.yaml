@@ -1,0 +1,10 @@
+{{/*
+Every refusal in the chart, evaluated here and rendering nothing.
+
+The filename has no leading underscore on purpose. Helm treats templates/_*
+as partials and never executes them, so this file as _guards.yaml was eight
+guards that silently did nothing: helm template accepted image.tag=latest, a
+canary beside a contract migration, and a PodDisruptionBudget over one pod.
+The output is empty, which Helm drops from the manifest.
+*/}}
+{{- include "service.guards" . -}}
