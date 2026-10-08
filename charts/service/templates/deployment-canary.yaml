@@ -1,0 +1,34 @@
+{{- if .Values.canary.enabled }}
+{{- $canaryPods := int (include "service.canaryPods" .) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "service.fullname" . }}-canary
+  labels:
+    {{- include "service.labels" . | nindent 4 }}
+    deploy.sam-farooq.dev/track: canary
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ include "service.wave" "workload" | quote }}
+    # The numbers a human needs when deciding to promote, on the object itself,
+    # so `kubectl describe` answers the question without finding this repo.
+    deploy.sam-farooq.dev/canary-weight: {{ .Values.canary.weight | quote }}
+    deploy.sam-farooq.dev/canary-pods: {{ $canaryPods | quote }}
+    deploy.sam-farooq.dev/analysis-window: {{ .Values.canary.analysisWindow | quote }}
+    deploy.sam-farooq.dev/promotion-criteria: {{ .Values.canary.promotionCriteria | quote }}
+spec:
+  replicas: {{ $canaryPods }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  progressDeadlineSeconds: {{ .Values.progressDeadlineSeconds }}
+  minReadySeconds: {{ .Values.minReadySeconds }}
+  selector:
+    matchLabels:
+      {{- include "service.selectorLabels" . | nindent 6 }}
+      deploy.sam-farooq.dev/track: canary
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    {{- include "service.podTemplate" (dict "ctx" . "track" "canary" "tag" .Values.canary.tag) | nindent 4 }}
+{{- end }}
