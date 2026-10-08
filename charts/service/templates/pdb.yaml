@@ -1,0 +1,21 @@
+{{- if .Values.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "service.fullname" . }}
+  labels:
+    {{- include "service.labels" . | nindent 4 }}
+  annotations:
+    # After the workload, not before. A PDB applied first is harmless; an HPA
+    # applied first logs a missing scale target on every reconcile.
+    argocd.argoproj.io/sync-wave: {{ include "service.wave" "governor" | quote }}
+spec:
+  # maxUnavailable, never minAvailable. minAvailable set to the replica count
+  # is the shape that blocks a node drain forever, and it reads as correct
+  # right up to the first cluster upgrade.
+  maxUnavailable: {{ .Values.pdb.maxUnavailable }}
+  selector:
+    matchLabels:
+      {{- include "service.selectorLabels" . | nindent 6 }}
+      deploy.sam-farooq.dev/track: stable
+{{- end }}
