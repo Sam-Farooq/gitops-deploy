@@ -1,8 +1,10 @@
 """Every refusal the chart makes, proven to fire.
 
-These were all written against a guards file named _guards.yaml, which Helm
-treats as a partial and never executes. Every one of them rendered happily.
-The tests are here because the guards were not.
+Most of these were written against a guards file named _guards.yaml, which
+Helm treats as a partial and never executes, so the seven refusals in the
+service.guards define rendered happily. The weight checks below are the
+exception: they live in service.canaryPods, which deployment.yaml includes,
+so they fired throughout. The tests are here because seven guards did not.
 """
 
 import pytest
